@@ -4,8 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Explore Japan · Sakura Dining</title>
+
+    <!-- ✅ PERFORMANCE: Preconnect to CDN before browser figures it out -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://unpkg.com">
+
+    <!-- ✅ PERFORMANCE: Load fonts with display=swap so text shows instantly -->
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+    <!-- ✅ PERFORMANCE: model-viewer loaded async — doesn't block page render -->
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+
     <style>
         :root {
             --ink: #080604;
@@ -17,27 +27,30 @@
             --ff-ui: 'DM Sans', sans-serif;
         }
 
+        *, *::before, *::after { box-sizing: border-box; }
+
         body {
             margin: 0;
             background-color: var(--ink);
             color: var(--paper);
             font-family: var(--ff-ui);
-            height: 100vh;
+            height: 100svh; /* ✅ svh: correct height on mobile (avoids browser chrome issues) */
             overflow: hidden;
             display: flex;
             flex-direction: column;
         }
 
-        /* Luxury Header */
+        /* ─── Header ─────────────────────────────── */
         .nav-header {
-            padding: 40px 20px 20px;
+            padding: max(env(safe-area-inset-top), 20px) 20px 16px; /* ✅ Safe area for iPhone notch */
             text-align: center;
-            border-bottom: 1px solid rgba(184, 151, 58, 0.2);
+            border-bottom: 1px solid rgba(184,151,58,0.2);
+            flex-shrink: 0;
         }
 
         .nav-header h1 {
             font-family: var(--ff-en);
-            font-size: 32px;
+            font-size: clamp(24px, 6vw, 36px);
             margin: 0;
             color: var(--yama2);
             letter-spacing: 0.1em;
@@ -48,96 +61,254 @@
             text-transform: uppercase;
             letter-spacing: 0.3em;
             opacity: 0.5;
-            margin-top: 5px;
+            margin: 4px 0 0;
         }
 
-        /* Horizontal Scroll Container */
+        /* ─── Scroll Grid ─────────────────────────── */
         .explorer-grid {
             flex: 1;
             display: flex;
             align-items: center;
             overflow-x: auto;
-            padding: 20px;
-            gap: 20px;
+            overflow-y: hidden;
+            padding: 20px 16px;
+            gap: 16px;
             scroll-snap-type: x mandatory;
-            -webkit-overflow-scrolling: touch;
+            -webkit-overflow-scrolling: touch;      /* ✅ Smooth scroll iOS */
+            overscroll-behavior-x: contain;         /* ✅ Prevents page bounce while scrolling cards */
+            scrollbar-width: none;
         }
-
         .explorer-grid::-webkit-scrollbar { display: none; }
 
-        /* Landmark Card */
+        /* ─── Card ────────────────────────────────── */
         .landmark-card {
-            flex: 0 0 85vw;
-            height: 60vh;
-            background: linear-gradient(180deg, rgba(20,18,15,1) 0%, rgba(8,6,4,1) 100%);
-            border: 1px solid rgba(184, 151, 58, 0.2);
-            border-radius: 12px;
+            flex: 0 0 min(85vw, 360px);
+            height: min(62vh, 520px);
+            background: #0e0c0a;
+            border: 1px solid rgba(184,151,58,0.25);
+            border-radius: 14px;
             position: relative;
             scroll-snap-align: center;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            /* ✅ PERFORMANCE: GPU-layer hint so scroll is butter-smooth */
+            will-change: transform;
+            transform: translateZ(0);
+        }
+
+        /* ─── model-viewer wrapper ────────────────── */
+        .model-wrap {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
         }
 
         model-viewer {
             width: 100%;
-            flex: 1;
+            height: 100%;
             background-color: transparent;
+            /* ✅ PERFORMANCE: hint browser this layer will composite separately */
+            will-change: transform;
         }
 
+        /* ✅ FAST-AR: Poster shown instantly while GLB downloads */
+        model-viewer::part(default-progress-bar) {
+            display: none; /* hide default ugly bar — we show our own */
+        }
+
+        /* ─── Custom Loading Overlay ──────────────── */
+        /* Shows while model loads, auto-hides when model-viewer fires @load */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: radial-gradient(ellipse at 50% 60%, #1a150a 0%, #080604 100%);
+            z-index: 10;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+        }
+
+        .loader-ring {
+            width: 44px;
+            height: 44px;
+            border: 2px solid rgba(184,151,58,0.15);
+            border-top-color: var(--yama2);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+
+        .loader-label {
+            font-size: 9px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--yama);
+            opacity: 0.7;
+        }
+
+        /* Progress bar underneath spinner */
+        .loader-bar-track {
+            width: 80px;
+            height: 2px;
+            background: rgba(184,151,58,0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loader-bar-fill {
+            height: 100%;
+            background: var(--yama2);
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ─── AR-Ready Badge ──────────────────────── */
+        /* Flashes when model is loaded + AR is available */
+        .ar-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(8,6,4,0.75);
+            border: 1px solid var(--yama);
+            border-radius: 20px;
+            padding: 4px 10px;
+            font-size: 9px;
+            letter-spacing: 0.15em;
+            color: var(--yama2);
+            text-transform: uppercase;
+            opacity: 0;
+            transform: translateY(-6px);
+            transition: opacity 0.4s, transform 0.4s;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .ar-badge.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* ─── Info Panel ──────────────────────────── */
         .landmark-info {
-            padding: 20px;
-            background: rgba(18, 16, 14, 0.9);
-            border-top: 1px solid rgba(184, 151, 58, 0.1);
+            padding: 16px;
+            background: rgba(12,10,8,0.95);
+            border-top: 1px solid rgba(184,151,58,0.12);
+            flex-shrink: 0;
         }
 
         .landmark-name {
             font-family: var(--ff-en);
-            font-size: 24px;
+            font-size: clamp(20px, 5vw, 26px);
             color: var(--paper);
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            line-height: 1.1;
         }
 
         .landmark-city {
-            font-size: 10px;
+            font-size: 9px;
             color: var(--yama);
             text-transform: uppercase;
-            letter-spacing: 0.1em;
-            margin-bottom: 15px;
+            letter-spacing: 0.15em;
+            margin-bottom: 12px;
         }
 
+        /* ─── AR Button ───────────────────────────── */
         .ar-btn {
             width: 100%;
             background: linear-gradient(135deg, var(--yama) 0%, var(--yama2) 100%);
             border: none;
-            padding: 14px;
-            border-radius: 6px;
+            padding: 13px;
+            border-radius: 8px;
             color: var(--ink);
             font-weight: 600;
-            font-size: 12px;
-            letter-spacing: 0.1em;
+            font-size: 11px;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
+            transition: opacity 0.2s, transform 0.15s;
+            /* ✅ Touch targets should be at least 44px tall — 13px padding achieves this */
+            min-height: 44px;
+            position: relative;
+            overflow: hidden;
         }
 
-        .ar-btn:active { transform: scale(0.98); }
+        .ar-btn::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(255,255,255,0);
+            transition: background 0.15s;
+        }
 
+        .ar-btn:active::after { background: rgba(255,255,255,0.15); }
+        .ar-btn:active { transform: scale(0.97); }
+
+        /* Disabled state while model loads */
+        .ar-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ─── Back Button ─────────────────────────── */
         .back-btn {
             position: fixed;
-            top: 20px;
-            left: 20px;
-            background: rgba(240, 232, 213, 0.1);
-            border: 1px solid rgba(240, 232, 213, 0.2);
+            top: max(env(safe-area-inset-top), 14px);
+            left: 16px;
+            background: rgba(240,232,213,0.08);
+            border: 1px solid rgba(240,232,213,0.18);
             color: var(--paper);
-            padding: 8px 15px;
+            padding: 8px 14px;
             border-radius: 20px;
             font-size: 10px;
             text-decoration: none;
-            z-index: 100;
+            z-index: 200;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            letter-spacing: 0.05em;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+        }
+
+        /* ─── Scroll hint dots ────────────────────── */
+        .scroll-dots {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 0 max(env(safe-area-inset-bottom), 14px);
+        }
+
+        .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: rgba(184,151,58,0.25);
+            transition: background 0.3s, transform 0.3s;
+        }
+
+        .dot.active {
+            background: var(--yama2);
+            transform: scale(1.3);
         }
     </style>
 </head>
@@ -150,53 +321,143 @@
         <p>Augmented Reality Landmarks</p>
     </div>
 
-    <div class="explorer-grid" id="grid">
-        </div>
+    <div class="explorer-grid" id="grid"></div>
+
+    <div class="scroll-dots" id="dots"></div>
 
     <script>
-        // List of models from your screenshot
         const landmarks = [
-            { name: "Tokyo Skytree", city: "Tokyo", file: "tokyo skytree 3d model.glb" },
-            { name: "Osaka Castle", city: "Osaka", file: "Osaka Castle 3d model.glb" },
-            { name: "Kiyomizu-dera", city: "Kyoto", file: "Kiyomizu-dera Temple.glb" },
-            { name: "Todai-ji Temple", city: "Nara", file: "Todai-ji Temple.glb" },
-            { name: "Himeji Castle", city: "Hyogo", file: "himeji castle 3d model.glb" },
-            { name: "Tokyo Tower", city: "Tokyo", file: "tokyo tower 3d model.glb" },
-            { name: "Meiji Jingu", city: "Tokyo", file: "Meiji Jingu Shrine.glb" },
-            { name: "Nijo Castle", city: "Kyoto", file: "Nijo Castle japan.glb" },
-            { name: "Asakusa Temple", city: "Tokyo", file: "Asakusa japan .glb" }
+            { name: "Tokyo Skytree",  city: "Tokyo",  file: "tokyo skytree 3d model" },
+            { name: "Osaka Castle",   city: "Osaka",  file: "Osaka Castle 3d model" },
+            { name: "Kiyomizu-dera",  city: "Kyoto",  file: "Kiyomizu-dera Temple" },
+            { name: "Todai-ji Temple",city: "Nara",   file: "Todai-ji Temple" },
+            { name: "Himeji Castle",  city: "Hyogo",  file: "himeji castle 3d model" },
+            { name: "Tokyo Tower",    city: "Tokyo",  file: "tokyo tower 3d model" },
+            { name: "Meiji Jingu",    city: "Tokyo",  file: "Meiji Jingu Shrine" },
+            { name: "Nijo Castle",    city: "Kyoto",  file: "Nijo Castle japan" },
+            { name: "Asakusa Temple", city: "Tokyo",  file: "Asakusa japan" }
         ];
 
-        const grid = document.getElementById('grid');
+        const grid   = document.getElementById('grid');
+        const dotsEl = document.getElementById('dots');
 
-        landmarks.forEach(l => {
+        // ─── Detect iOS so we know to use quick-look ──────────────────────────
+        const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+        // ─── Build cards ────────────────────────────────────────────────────────
+        landmarks.forEach((l, i) => {
+            const glbPath  = `ExploreJapan/${l.file}.glb`;
+            // ✅ iOS AR: provide USDZ so Quick Look opens instantly
+            const usdzPath = `ExploreJapan/${l.file}.usdz`;
+
+            // ✅ PERFORMANCE: only load first card eagerly; rest are lazy
+            const loading = i === 0 ? 'eager' : 'lazy';
+
             const card = document.createElement('div');
             card.className = 'landmark-card';
-            // Path points to your ExploreJapan folder in GitHub
-            const modelPath = `ExploreJapan/${l.file}`;
-            
+            card.dataset.index = i;
+
             card.innerHTML = `
-                <<model-viewer 
-    src="${modelPath}" 
-    ar 
-    ar-modes="webxr scene-viewer quick-look" 
-    ar-placement="floor" 
-    camera-controls 
-    shadow-intensity="1" 
-    exposure="1"
-    style="width: 100%; height: 100%;">
-</model-viewer>
+                <div class="model-wrap">
+                    <model-viewer
+                        id="mv-${i}"
+                        src="${glbPath}"
+                        ${isIOS ? `ios-src="${usdzPath}"` : ''}
+                        ar
+                        ar-modes="webxr scene-viewer quick-look"
+                        ar-placement="floor"
+                        camera-controls
+                        touch-action="pan-y"
+                        shadow-intensity="1"
+                        exposure="1.1"
+                        loading="${loading}"
+                        reveal="auto"
+                        style="width:100%;height:100%;"
+                    ></model-viewer>
+
+                    <!-- Loading overlay with progress -->
+                    <div class="loading-overlay" id="overlay-${i}">
+                        <div class="loader-ring"></div>
+                        <div class="loader-bar-track">
+                            <div class="loader-bar-fill" id="bar-${i}"></div>
+                        </div>
+                        <div class="loader-label">Loading model</div>
+                    </div>
+
+                    <!-- AR-ready badge -->
+                    <div class="ar-badge" id="badge-${i}">✦ AR Ready</div>
+                </div>
+
                 <div class="landmark-info">
                     <div class="landmark-name">${l.name}</div>
                     <div class="landmark-city">${l.city}</div>
-                    <button class="ar-btn" onclick="this.parentElement.previousElementSibling.activateAR()">
+                    <button class="ar-btn" id="arbtn-${i}" disabled>
                         <span>🪐</span> View in Real World
                     </button>
                 </div>
             `;
+
             grid.appendChild(card);
+
+            // ─── Wire model-viewer events ────────────────────────────────────
+            // Small delay to let DOM settle before querying
+            requestAnimationFrame(() => {
+                const mv      = document.getElementById(`mv-${i}`);
+                const overlay = document.getElementById(`overlay-${i}`);
+                const bar     = document.getElementById(`bar-${i}`);
+                const badge   = document.getElementById(`badge-${i}`);
+                const btn     = document.getElementById(`arbtn-${i}`);
+
+                // ✅ FAST LOAD: update progress bar as bytes arrive
+                mv.addEventListener('progress', (e) => {
+                    const pct = Math.round(e.detail.totalProgress * 100);
+                    if (bar) bar.style.width = pct + '%';
+                });
+
+                // ✅ FAST AR: hide overlay and enable button the moment model is parsed
+                mv.addEventListener('load', () => {
+                    overlay?.classList.add('hidden');
+                    badge?.classList.add('visible');
+                    if (btn) btn.disabled = false;
+
+                    // Remove overlay from DOM after fade to free memory
+                    setTimeout(() => overlay?.remove(), 500);
+                });
+
+                // ✅ Instant AR: tap button → AR opens immediately (no extra click)
+                btn.addEventListener('click', () => {
+                    mv.activateAR();
+                });
+
+                // Error fallback
+                mv.addEventListener('error', () => {
+                    if (overlay) overlay.querySelector('.loader-label').textContent = 'Model unavailable';
+                    if (overlay) overlay.querySelector('.loader-ring').style.display = 'none';
+                });
+            });
+
+            // ─── Scroll dots ──────────────────────────────────────────────────
+            const dot = document.createElement('div');
+            dot.className = 'dot' + (i === 0 ? ' active' : '');
+            dot.dataset.index = i;
+            dotsEl.appendChild(dot);
         });
-        
+
+        // ─── Active dot on scroll ────────────────────────────────────────────
+        const dots = dotsEl.querySelectorAll('.dot');
+
+        grid.addEventListener('scroll', () => {
+            // Find which card is most centered
+            const center = grid.scrollLeft + grid.clientWidth / 2;
+            let closest = 0, minDist = Infinity;
+            grid.querySelectorAll('.landmark-card').forEach((card, i) => {
+                const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+                const dist = Math.abs(center - cardCenter);
+                if (dist < minDist) { minDist = dist; closest = i; }
+            });
+            dots.forEach((d, i) => d.classList.toggle('active', i === closest));
+        }, { passive: true });
     </script>
 </body>
 </html>
