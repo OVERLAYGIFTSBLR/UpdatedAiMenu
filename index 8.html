@@ -137,20 +137,10 @@
 
     .card-row { display: flex; gap: 14px; align-items: flex-start; }
     .card-thumb {
-      width: 72px; height: 72px; flex-shrink: 0; border-radius: 10px;
+      width: 64px; height: 64px; flex-shrink: 0; border-radius: 10px;
       background: linear-gradient(135deg, #f5ead6 0%, #e8d5b0 100%);
       border: 1px solid var(--border); display: flex; align-items: center;
       justify-content: center; font-size: 30px; position: relative;
-      overflow: hidden;
-    }
-    .card-thumb model-viewer {
-      width: 100%; height: 100%;
-      background: transparent;
-      --progress-bar-height: 0px;
-      pointer-events: none;
-    }
-    .card-thumb .thumb-emoji {
-      font-size: 30px;
     }
     .ar-pill {
       position: absolute; bottom: 3px; right: 3px;
@@ -543,19 +533,7 @@ function cardHTML(d) {
     <div class="menu-card${d.available ? '' : ' unavailable'}" data-id="${d.id}" role="button" tabindex="0" aria-label="View ${d.name} in 3D">
       <div class="card-row">
         <div class="card-thumb">
-          ${d.glbPath
-            ? `<model-viewer
-                src="${d.glbPath}"
-                camera-orbit="0deg 70deg 0.9m"
-                disable-zoom
-                disable-pan
-                interaction-prompt="none"
-                loading="lazy"
-                reveal="auto"
-                style="width:100%;height:100%;background:transparent;--progress-bar-height:0px;pointer-events:none;"
-              ></model-viewer>`
-            : `<span class="thumb-emoji">${d.emoji}</span>`
-          }
+          <span>${d.emoji}</span>
           ${d.glbPath ? '<span class="ar-pill">AR</span>' : ''}
         </div>
         <div class="card-body">
@@ -655,9 +633,9 @@ function openModal(id) {
     // ✅ LOCK CAMERA so user cannot zoom and change perceived size
     //    Orbit: azimuth | elevation | radius
     //    Both min and max set to the same value = locked
-    mv.setAttribute('camera-orbit',     '0deg 70deg 0.7m');
-    mv.setAttribute('min-camera-orbit', 'auto 70deg 0.7m');
-    mv.setAttribute('max-camera-orbit', 'auto 70deg 0.7m');
+    mv.setAttribute('camera-orbit',     '0deg 70deg 1.5m');
+    mv.setAttribute('min-camera-orbit', 'auto 70deg 1.5m');
+    mv.setAttribute('max-camera-orbit', 'auto 70deg 1.5m');
 
     // ✅ DISABLE ZOOM — belt & suspenders alongside locked orbit
     mv.setAttribute('disable-zoom', '');
