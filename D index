@@ -175,9 +175,9 @@
     /* ── MODAL ───────────────────────────────────────── */
     .modal-overlay {
       display: none; position: fixed; inset: 0;
-      background: rgba(8,6,2,0.82); z-index: 9000;
+      background: rgba(8,6,2,0.72); z-index: 9000;
       align-items: flex-end; justify-content: center; padding: 0;
-      /* ✅ HEAT FIX: removed backdrop-filter blur — very expensive on mobile GPU */
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
     }
     @media (min-width: 540px) { .modal-overlay { align-items: center; padding: 1.5rem; } }
     .modal-overlay.open { display: flex; }
@@ -247,12 +247,12 @@
     /* ── AR READY BADGE inside viewer ──────────────────── */
     .mv-ar-badge {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%) translateY(-6px);
-      background: rgba(26,18,8,0.92); border: 1px solid #b8860b;
+      background: rgba(26,18,8,0.8); border: 1px solid #b8860b;
       border-radius: 20px; padding: 4px 12px;
       font-size: 9px; letter-spacing: 0.15em; color: #d4ae52;
       text-transform: uppercase; opacity: 0;
       transition: opacity 0.4s, transform 0.4s;
-      /* ✅ HEAT FIX: no backdrop-filter */
+      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       pointer-events: none; z-index: 4; white-space: nowrap;
     }
     .mv-ar-badge.visible {
@@ -265,12 +265,12 @@
     .scale-info {
       position: absolute; bottom: 10px; left: 50%;
       transform: translateX(-50%);
-      background: rgba(26,18,8,0.88);
+      background: rgba(26,18,8,0.75);
       border: 1px solid rgba(184,134,11,0.3);
       border-radius: 12px; padding: 4px 12px;
       font-size: 9px; letter-spacing: 0.2em; color: rgba(255,255,255,0.5);
       text-transform: uppercase; white-space: nowrap;
-      /* ✅ HEAT FIX: no backdrop-filter */
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
       z-index: 4; pointer-events: none;
     }
 
@@ -648,32 +648,16 @@ function openModal(id) {
     mv.setAttribute('ar-scale',      'fixed');   // ← AR won't auto-scale either
 
     // ── Viewer experience ────────────────────────────────────
-    mv.setAttribute('camera-controls',    '');
-    // ✅ FIX 3: auto-rotate REMOVED entirely — was spinning GPU at 60fps non-stop
+    mv.setAttribute('camera-controls',    '');    // still allow rotation (not zoom)
+    mv.setAttribute('auto-rotate',        '');
+    mv.setAttribute('auto-rotate-delay',  '1000');
+    mv.setAttribute('rotation-per-second','30deg');
     mv.setAttribute('shadow-intensity',   '1');
     mv.setAttribute('environment-image',  'neutral');
     mv.setAttribute('exposure',           '1.1');
-    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('interaction-prompt', 'none'); // no "pinch" hint shown
     mv.setAttribute('loading',            'eager');
     mv.setAttribute('reveal',             'auto');
-
-    // ✅ FIX 2: Pause GPU rendering after 30s of zero interaction
-    //    mv.pause() tells model-viewer to stop its render loop completely.
-    //    mv.play()  resumes it the moment user touches the viewer again.
-    let idleTimer = null;
-    const IDLE_MS = 30_000;
-
-    function resetIdle() {
-      clearTimeout(idleTimer);
-      if (typeof mv.play === 'function') mv.play();
-      idleTimer = setTimeout(() => {
-        if (typeof mv.pause === 'function') mv.pause();
-      }, IDLE_MS);
-    }
-
-    mv.addEventListener('load',          resetIdle, { once: true });
-    mv.addEventListener('camera-change', resetIdle);
-    mv.addEventListener('pointerdown',   resetIdle);
 
     mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;';
 
@@ -730,28 +714,14 @@ function openModal(id) {
 //  CLOSE MODAL — remove model-viewer to free memory
 // ─────────────────────────────────────────────────────────────
 function closeModal() {
-  // ✅ FIX 1: Pause rendering BEFORE removing — stops GPU immediately
-  const mvEl = document.querySelector('#modal-viewer-wrap model-viewer');
-  if (mvEl && typeof mvEl.pause === 'function') mvEl.pause();
-
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.style.overflow = '';
-  if (mvEl) mvEl.remove();
+  const mv = document.querySelector('#modal-viewer-wrap model-viewer');
+  if (mv) mv.remove();
   const loadOverlay = document.getElementById('mv-load-overlay');
   if (loadOverlay) loadOverlay.remove();
   document.getElementById('mv-ar-badge').classList.remove('visible');
 }
-
-// ✅ FIX 1: Also pause when app goes to background (user switches apps)
-document.addEventListener('visibilitychange', () => {
-  const mvEl = document.querySelector('#modal-viewer-wrap model-viewer');
-  if (!mvEl) return;
-  if (document.hidden) {
-    if (typeof mvEl.pause === 'function') mvEl.pause();
-  } else {
-    if (typeof mvEl.play  === 'function') mvEl.play();
-  }
-});
 
 document.getElementById('modal-close').addEventListener('click', closeModal);
 document.getElementById('modal-overlay').addEventListener('click', e => {
