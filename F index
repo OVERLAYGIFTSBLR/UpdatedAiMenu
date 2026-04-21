@@ -689,25 +689,31 @@ function loadModelAndAR(d, vw, arBadge, scaleInfo, arBtnWrap, photoWrap) {
   mv.setAttribute('interaction-prompt','none');
   mv.setAttribute('loading',           'eager');
   mv.setAttribute('reveal',            'auto');
-  // ✅ INVISIBLE always — user never sees the 3D preview screen (Image 2).
-  //    Model loads silently behind the food photo.
-  //    The instant it's ready → AR camera opens directly. No intermediate screen.
-  mv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:transparent;touch-action:none;z-index:-1;opacity:0;pointer-events:none;';
+  mv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:transparent;touch-action:none;z-index:5;opacity:0;transition:opacity 0.3s;';
+
+  // Idle pause after 30s
+  let idleTimer = null;
+  function resetIdle() {
+    clearTimeout(idleTimer);
+    if (typeof mv.play === 'function') mv.play();
+    idleTimer = setTimeout(() => { if (typeof mv.pause === 'function') mv.pause(); }, 30_000);
+  }
+  mv.addEventListener('camera-change', resetIdle);
+  mv.addEventListener('pointerdown',   resetIdle);
 
   vw.insertBefore(mv, arBadge);
 
   mv.addEventListener('load', () => {
-    // Ready — skip the 3D viewer screen entirely, go straight to AR
-    mv.activateAR();
-
-    // If AR fails or user exits AR back to the app, restore the button
-    mv.addEventListener('ar-status', (e) => {
-      if (e.detail.status === 'failed' || e.detail.status === 'not-presenting') {
-        btn.disabled = false;
-        btn.innerHTML = '🪐 View in AR';
-        mv.remove();
-      }
-    }, { once: true });
+    // Fade in 3D, fade out photo
+    mv.style.opacity = '1';
+    photoWrap.style.transition = 'opacity 0.3s';
+    photoWrap.style.opacity = '0';
+    arBtnWrap.remove();
+    arBadge.classList.add('visible');
+    scaleInfo.textContent = 'Actual portion size (scale 0.5×)';
+    resetIdle();
+    // Auto-launch AR immediately
+    setTimeout(() => mv.activateAR(), 300);
   });
 
   mv.addEventListener('error', () => {
