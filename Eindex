@@ -468,10 +468,8 @@ function rowToDish(row) {
   const desc = row[`description${sfx}`] || row['description'] || '';
   const name = row[`name${sfx}`]        || row['name']        || '';
 
-  const rawGlb    = (row['glb_url']     || '').trim();
-  const glbPath   = rawGlb ? decodeURIComponent(rawGlb) : '';
-  const rawPoster = (row['poster_url'] || '').trim();
-  const posterPath = rawPoster ? decodeURIComponent(rawPoster) : '';
+  const rawGlb  = (row['glb_url'] || '').trim();
+  const glbPath = rawGlb ? decodeURIComponent(rawGlb) : '';
 
   // ✅ FIXED SCALE: all dishes locked to 0.5 — hardcoded, ignores sheet.
   //    This guarantees customers always see the correct portion size.
@@ -490,7 +488,6 @@ function rowToDish(row) {
     isNew:     truthy(row['new']),
     available: truthy(row['available']),
     glbPath,
-    posterPath,   // ← image shown on card + modal (no GPU)
     scale:     FIXED_SCALE,   // ← always 0.5, never from sheet
     emoji:    EMOJI_MAP[(row['name'] || '').toLowerCase()] || '🍽️',
   };
@@ -533,20 +530,11 @@ function renderTabs() {
 const SVG_CUBE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`;
 
 function cardHTML(d) {
-  // ✅ IMAGE thumbnail — no GPU, loads instantly
-  // Falls back to emoji if no poster_url in sheet
-  const thumbContent = d.posterPath
-    ? `<img src="${d.posterPath}" alt="${d.name}"
-          style="width:100%;height:100%;object-fit:cover;border-radius:9px;display:block;"
-          loading="lazy"
-          onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${d.emoji}',style:'font-size:30px'}))">`
-    : `<span style="font-size:30px;">${d.emoji}</span>`;
-
   return `
-    <div class="menu-card${d.available ? '' : ' unavailable'}" data-id="${d.id}" role="button" tabindex="0" aria-label="View ${d.name}">
+    <div class="menu-card${d.available ? '' : ' unavailable'}" data-id="${d.id}" role="button" tabindex="0" aria-label="View ${d.name} in 3D">
       <div class="card-row">
         <div class="card-thumb">
-          ${thumbContent}
+          <span>${d.emoji}</span>
           ${d.glbPath ? '<span class="ar-pill">AR</span>' : ''}
         </div>
         <div class="card-body">
@@ -589,10 +577,21 @@ function renderItems() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  MODAL
-//  ▸ Opens with a PHOTO (zero GPU)
-//  ▸ "View in AR" button → ONLY THEN loads model-viewer + launches AR
-//  ▸ This means zero heating until customer explicitly wants AR
+//  MODAL — FIXED SCALE, NO PINCH ZOOM
+//
+//  HOW FIXED SCALE WORKS:
+//  1. `scale="${s} ${s} ${s}"` sets the model's world scale from sheet.
+//  2. `camera-orbit` locks the camera to a fixed distance/angle.
+//  3. `min-camera-orbit` = `max-camera-orbit` = same value → 
+//     orbit controls are constrained so the user CANNOT zoom in/out.
+//  4. `disable-zoom` attribute disables scroll-wheel zoom.
+//  5. `touch-action: none` on the element prevents browser
+//     from interpreting pinch as page zoom (CSS already set above).
+//  6. `interaction-prompt="none"` removes the hand animation
+//     that encourages zooming.
+//
+//  AR uses the same scale — ar-scale="fixed" prevents AR from
+//  auto-scaling the model when placed in the real world.
 // ─────────────────────────────────────────────────────────────
 function openModal(id) {
   const d = allDishes.find(x => x.id === id);
@@ -606,138 +605,140 @@ function openModal(id) {
   document.getElementById('modal-tags').innerHTML   = tagHTML(d);
   document.getElementById('modal-tags2').innerHTML  = tagHTML(d);
 
+  // Reset badges
   const arBadge   = document.getElementById('mv-ar-badge');
   const scaleInfo = document.getElementById('scale-info');
   arBadge.classList.remove('visible');
-  scaleInfo.textContent = '';
+  scaleInfo.textContent = 'Actual portion size';
 
-  const vw = document.getElementById('modal-viewer-wrap');
-  // Clear previous content
-  vw.querySelectorAll('.modal-photo, model-viewer, .no-model, .mv-loading-overlay, .mv-ar-btn-wrap')
-    .forEach(el => el.remove());
+  const vw   = document.getElementById('modal-viewer-wrap');
+  const prev = vw.querySelector('model-viewer, .no-model');
+  if (prev) prev.remove();
 
-  // ── STEP 1: Show photo immediately (no GPU at all) ────────
-  const photoWrap = document.createElement('div');
-  photoWrap.className = 'modal-photo';
-  photoWrap.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:20px 20px 0 0;';
-
-  if (d.posterPath) {
-    photoWrap.innerHTML = `<img src="${d.posterPath}" alt="${d.name}"
-      style="width:100%;height:100%;object-fit:cover;"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <span style="display:none;font-size:80px;align-items:center;justify-content:center;width:100%;height:100%;">${d.emoji}</span>`;
-  } else {
-    photoWrap.innerHTML = `<span style="font-size:80px;">${d.emoji}</span>`;
-  }
-  vw.insertBefore(photoWrap, arBadge);
-
-  // ── STEP 2: Show AR button over the photo (only if GLB exists) ──
   if (d.glbPath) {
-    const arBtnWrap = document.createElement('div');
-    arBtnWrap.className = 'mv-ar-btn-wrap';
-    arBtnWrap.style.cssText = `
-      position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
-      z-index:6; display:flex; gap:10px; align-items:center;`;
-    arBtnWrap.innerHTML = `
-      <button class="modal-ar-launch-btn" style="
-        display:inline-flex; align-items:center; gap:8px;
-        background:linear-gradient(135deg,#b8860b,#d4ae52);
-        color:#1a1208; border:none; border-radius:24px;
-        padding:11px 22px; font-family:'DM Sans',sans-serif;
-        font-size:13px; font-weight:600; letter-spacing:0.05em;
-        cursor:pointer; white-space:nowrap; min-height:44px;
-        box-shadow:0 4px 16px rgba(184,134,11,0.35);">
-        🪐 View in AR
-      </button>`;
-    vw.insertBefore(arBtnWrap, arBadge);
+    // ── Build model-viewer programmatically ──────────────────
+    const mv = document.createElement('model-viewer');
 
-    // Tap → load model-viewer and immediately launch AR
-    arBtnWrap.querySelector('.modal-ar-launch-btn').addEventListener('click', () => {
-      loadModelAndAR(d, vw, arBadge, scaleInfo, arBtnWrap, photoWrap);
+    // ✅ Source
+    mv.setAttribute('src', d.glbPath);
+
+    // ✅ iOS Quick Look — provide USDZ if you have it
+    if (isIOS) {
+      mv.setAttribute('ios-src', d.glbPath.replace(/\.glb$/i, '.usdz'));
+    }
+
+    // ✅ EXACT SCALE FROM SHEET — applied to model world transform
+    const s = d.scale.toFixed(6);
+    mv.setAttribute('scale', `${s} ${s} ${s}`);
+
+    // ✅ LOCK CAMERA so user cannot zoom and change perceived size
+    //    Orbit: azimuth | elevation | radius
+    //    Both min and max set to the same value = locked
+    mv.setAttribute('camera-orbit',     '0deg 70deg 1.5m');
+    mv.setAttribute('min-camera-orbit', 'auto 70deg 1.5m');
+    mv.setAttribute('max-camera-orbit', 'auto 70deg 1.5m');
+
+    // ✅ DISABLE ZOOM — belt & suspenders alongside locked orbit
+    mv.setAttribute('disable-zoom', '');
+
+    // ✅ AR — uses same scale, no auto-resize in real world
+    mv.setAttribute('ar',            '');
+    mv.setAttribute('ar-modes',      'webxr scene-viewer quick-look');
+    mv.setAttribute('ar-placement',  'floor');
+    mv.setAttribute('ar-scale',      'fixed');   // ← AR won't auto-scale either
+
+    // ── Viewer experience ────────────────────────────────────
+    mv.setAttribute('camera-controls',    '');
+    // ✅ FIX 3: auto-rotate REMOVED entirely — was spinning GPU at 60fps non-stop
+    mv.setAttribute('shadow-intensity',   '1');
+    mv.setAttribute('environment-image',  'neutral');
+    mv.setAttribute('exposure',           '1.1');
+    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('loading',            'eager');
+    mv.setAttribute('reveal',             'auto');
+
+    // ✅ FIX 2: Pause GPU rendering after 30s of zero interaction
+    //    mv.pause() tells model-viewer to stop its render loop completely.
+    //    mv.play()  resumes it the moment user touches the viewer again.
+    let idleTimer = null;
+    const IDLE_MS = 30_000;
+
+    function resetIdle() {
+      clearTimeout(idleTimer);
+      if (typeof mv.play === 'function') mv.play();
+      idleTimer = setTimeout(() => {
+        if (typeof mv.pause === 'function') mv.pause();
+      }, IDLE_MS);
+    }
+
+    mv.addEventListener('load',          resetIdle, { once: true });
+    mv.addEventListener('camera-change', resetIdle);
+    mv.addEventListener('pointerdown',   resetIdle);
+
+    mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;';
+
+    // ── Loading overlay (fast feedback while GLB downloads) ──
+    const loadOverlay = document.createElement('div');
+    loadOverlay.className = 'mv-loading-overlay';
+    loadOverlay.id = 'mv-load-overlay';
+    loadOverlay.innerHTML = `
+      <div class="mv-loader-ring"></div>
+      <div class="mv-loader-bar-track"><div class="mv-loader-bar-fill" id="mv-bar"></div></div>
+      <div class="mv-loader-label">Loading model</div>
+    `;
+    vw.insertBefore(loadOverlay, arBadge);
+    vw.insertBefore(mv, loadOverlay);
+
+    // ── Wire events ──────────────────────────────────────────
+    // ✅ FAST LOAD: progress bar fills as bytes arrive
+    mv.addEventListener('progress', (e) => {
+      const bar = document.getElementById('mv-bar');
+      if (bar) bar.style.width = Math.round(e.detail.totalProgress * 100) + '%';
     });
+
+    // ✅ FAST AR: enable AR button the instant model is parsed
+    mv.addEventListener('load', () => {
+      loadOverlay.classList.add('hidden');
+      arBadge.classList.add('visible');
+      // Update scale chip — always shows fixed 0.5 scale
+      scaleInfo.textContent = `Actual portion size (scale 0.5×)`;
+      setTimeout(() => loadOverlay.remove(), 500);
+    });
+
+    mv.addEventListener('error', () => {
+      const label = loadOverlay.querySelector('.mv-loader-label');
+      const ring  = loadOverlay.querySelector('.mv-loader-ring');
+      if (label) label.textContent = 'Model unavailable';
+      if (ring)  ring.style.display = 'none';
+    });
+
+  } else {
+    // Fallback: no GLB
+    const ph = document.createElement('div');
+    ph.className = 'no-model';
+    ph.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:10px;';
+    ph.innerHTML = `<span style="font-size:72px">${d.emoji}</span>
+                    <span style="font-size:11px;letter-spacing:1px;color:rgba(255,255,255,0.3)">3D model not available</span>`;
+    vw.insertBefore(ph, arBadge);
   }
 
   document.getElementById('modal-overlay').classList.add('open');
   document.body.style.overflow = 'hidden';
 }
 
-// ── Load 3D model + launch AR (only called when user taps AR button) ──
-function loadModelAndAR(d, vw, arBadge, scaleInfo, arBtnWrap, photoWrap) {
-  // Swap button to loading state
-  const btn = arBtnWrap.querySelector('.modal-ar-launch-btn');
-  btn.disabled = true;
-  btn.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(26,18,8,0.2);border-top-color:#1a1208;border-radius:50%;animation:spin 0.8s linear infinite;"></span> Loading…`;
-
-  const mv = document.createElement('model-viewer');
-  mv.setAttribute('src', d.glbPath);
-  if (isIOS) mv.setAttribute('ios-src', d.glbPath.replace(/\.glb$/i, '.usdz'));
-
-  const s = d.scale.toFixed(6);
-  mv.setAttribute('scale',             `${s} ${s} ${s}`);
-  mv.setAttribute('camera-orbit',      '0deg 70deg 1.5m');
-  mv.setAttribute('min-camera-orbit',  'auto 70deg 1.5m');
-  mv.setAttribute('max-camera-orbit',  'auto 70deg 1.5m');
-  mv.setAttribute('disable-zoom',      '');
-  mv.setAttribute('ar',                '');
-  mv.setAttribute('ar-modes',          'webxr scene-viewer quick-look');
-  mv.setAttribute('ar-placement',      'floor');
-  mv.setAttribute('ar-scale',          'fixed');
-  mv.setAttribute('camera-controls',   '');
-  mv.setAttribute('shadow-intensity',  '1');
-  mv.setAttribute('environment-image', 'neutral');
-  mv.setAttribute('exposure',          '1.1');
-  mv.setAttribute('interaction-prompt','none');
-  mv.setAttribute('loading',           'eager');
-  mv.setAttribute('reveal',            'auto');
-  mv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;background:transparent;touch-action:none;z-index:5;opacity:0;transition:opacity 0.3s;';
-
-  // Idle pause after 30s
-  let idleTimer = null;
-  function resetIdle() {
-    clearTimeout(idleTimer);
-    if (typeof mv.play === 'function') mv.play();
-    idleTimer = setTimeout(() => { if (typeof mv.pause === 'function') mv.pause(); }, 30_000);
-  }
-  mv.addEventListener('camera-change', resetIdle);
-  mv.addEventListener('pointerdown',   resetIdle);
-
-  vw.insertBefore(mv, arBadge);
-
-  mv.addEventListener('load', () => {
-    // Fade in 3D, fade out photo
-    mv.style.opacity = '1';
-    photoWrap.style.transition = 'opacity 0.3s';
-    photoWrap.style.opacity = '0';
-    arBtnWrap.remove();
-    arBadge.classList.add('visible');
-    scaleInfo.textContent = 'Actual portion size (scale 0.5×)';
-    resetIdle();
-    // Auto-launch AR immediately
-    setTimeout(() => mv.activateAR(), 300);
-  });
-
-  mv.addEventListener('error', () => {
-    btn.disabled = false;
-    btn.innerHTML = '⚠️ Failed — Tap to retry';
-    mv.remove();
-  });
-}
-
 // ─────────────────────────────────────────────────────────────
 //  CLOSE MODAL — remove model-viewer to free memory
 // ─────────────────────────────────────────────────────────────
 function closeModal() {
-  // Pause any active model-viewer before removing
+  // ✅ FIX 1: Pause rendering BEFORE removing — stops GPU immediately
   const mvEl = document.querySelector('#modal-viewer-wrap model-viewer');
   if (mvEl && typeof mvEl.pause === 'function') mvEl.pause();
 
   document.getElementById('modal-overlay').classList.remove('open');
   document.body.style.overflow = '';
-
-  // Clean up all injected elements
-  document.querySelectorAll('#modal-viewer-wrap .modal-photo, #modal-viewer-wrap model-viewer, #modal-viewer-wrap .mv-loading-overlay, #modal-viewer-wrap .mv-ar-btn-wrap')
-    .forEach(el => el.remove());
-
+  if (mvEl) mvEl.remove();
+  const loadOverlay = document.getElementById('mv-load-overlay');
+  if (loadOverlay) loadOverlay.remove();
   document.getElementById('mv-ar-badge').classList.remove('visible');
 }
 
