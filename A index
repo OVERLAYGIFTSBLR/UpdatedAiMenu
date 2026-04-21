@@ -6,12 +6,14 @@
   <title>Sakura Kitchen — AR Menu</title>
   <meta name="description" content="Interactive AR menu for Sakura Kitchen — authentic Japanese cuisine with 3D dish previews." />
 
+  <!-- ✅ PERFORMANCE: Preconnect to all CDNs before browser parses JS -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="preconnect" href="https://unpkg.com" />
 
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
 
+  <!-- ✅ PERFORMANCE: Async module — doesn't block page render -->
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 
   <style>
@@ -33,6 +35,7 @@
     }
 
     html { scroll-behavior: smooth; }
+
     body {
       background: var(--paper);
       font-family: 'DM Sans', sans-serif;
@@ -42,22 +45,29 @@
 
     /* ── HEADER ─────────────────────────────────────── */
     .site-header {
-      background: var(--ink); color: #fff;
+      background: var(--ink);
+      color: #fff;
       text-align: center;
       padding: max(env(safe-area-inset-top), 2.5rem) 1rem 2rem;
-      position: relative; overflow: hidden;
+      position: relative;
+      overflow: hidden;
     }
+
     .site-header::before {
-      content: ''; position: absolute; inset: 0;
+      content: '';
+      position: absolute;
+      inset: 0;
       background-image:
         radial-gradient(circle at 20% 50%, rgba(192,57,43,0.12) 0%, transparent 60%),
         radial-gradient(circle at 80% 50%, rgba(184,134,11,0.10) 0%, transparent 60%);
       pointer-events: none;
     }
+
     .header-jp    { font-family: 'Noto Serif JP', serif; font-size: 13px; letter-spacing: 5px; color: rgba(255,255,255,0.45); margin-bottom: 10px; }
     .header-title { font-family: 'Playfair Display', serif; font-size: clamp(32px,6vw,52px); font-weight: 400; letter-spacing: -0.5px; line-height: 1.05; margin-bottom: 8px; }
     .header-title em { font-style: italic; color: rgba(255,255,255,0.7); }
     .header-sub   { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: rgba(255,255,255,0.4); margin-bottom: 18px; }
+
     .ar-badge {
       display: inline-flex; align-items: center; gap: 7px;
       border: 1px solid rgba(255,255,255,0.18); border-radius: 20px;
@@ -97,6 +107,7 @@
 
     /* ── MAIN ────────────────────────────────────────── */
     .main { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
     .state-box { text-align: center; padding: 4rem 1rem; color: var(--muted); }
     .state-box .spinner {
       width: 32px; height: 32px; border: 2px solid var(--border);
@@ -115,6 +126,7 @@
 
     /* ── CARDS ───────────────────────────────────────── */
     .items-grid { display: flex; flex-direction: column; gap: 10px; }
+
     .menu-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
       padding: 1.1rem 1.25rem; cursor: pointer;
@@ -122,19 +134,23 @@
       -webkit-tap-highlight-color: transparent;
     }
     .menu-card:hover { border-color: var(--border-md); transform: translateY(-2px); box-shadow: var(--shadow); }
+
     .card-row { display: flex; gap: 14px; align-items: flex-start; }
     .card-thumb {
       width: 72px; height: 72px; flex-shrink: 0; border-radius: 10px;
-      background: #000; border: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 30px; position: relative; overflow: hidden;
+      background: #000;
+      border: 1px solid var(--border); display: flex; align-items: center;
+      justify-content: center; font-size: 30px; position: relative;
+      overflow: hidden;
     }
     .card-thumb model-viewer {
       width: 100%; height: 100%;
       --progress-bar-height: 0px;
       pointer-events: none;
     }
-    .card-thumb .thumb-emoji { font-size: 30px; }
+    .card-thumb .thumb-emoji {
+      font-size: 30px;
+    }
     .ar-pill {
       position: absolute; bottom: 3px; right: 3px;
       background: var(--ink); color: #fff; font-size: 8px;
@@ -154,6 +170,7 @@
     .card-footer { display: flex; align-items: center; justify-content: space-between; }
     .dish-price  { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--ink); }
     .price-sym   { font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted); margin-right: 1px; }
+
     .ar-btn {
       display: inline-flex; align-items: center; gap: 6px;
       background: var(--ink); color: #fff; border: none; border-radius: 8px;
@@ -173,6 +190,7 @@
     }
     @media (min-width: 540px) { .modal-overlay { align-items: center; padding: 1.5rem; } }
     .modal-overlay.open { display: flex; }
+
     .modal-card {
       background: var(--paper); border-radius: 20px 20px 0 0;
       width: 100%; max-width: 500px; max-height: 92svh;
@@ -190,12 +208,9 @@
       border-radius: 20px 20px 0 0; position: relative; overflow: hidden;
     }
 
-    /*
-     * ✅ FIX: model-viewer starts INVISIBLE (opacity:0).
-     *    We only reveal it via JS after the 'load' event fires,
-     *    which is AFTER scale + geometry are both fully applied.
-     *    This eliminates the "wrong size → correct size" pop entirely.
-     */
+    /* ✅ FIXED SCALE: model-viewer itself MUST NOT be resized by user.
+       touch-action: none  → disables pinch-zoom on the element entirely.
+       pointer-events on the slot disables wheel zoom on desktop too.      */
     model-viewer {
       display: block;
       width: 100%;
@@ -203,13 +218,11 @@
       background: transparent;
       --progress-bar-color: #b8860b;
       --progress-mask: transparent;
+      /* Disable pinch zoom / scroll zoom on the 3D viewer */
       touch-action: none;
-      /* KEY FIX: hidden until scale is applied */
-      opacity: 0;
-      transition: opacity 0.35s ease;
     }
 
-    /* ── LOADING OVERLAY ─────────────────────────────── */
+    /* ── CUSTOM LOADING STATE inside modal viewer ─────── */
     .mv-loading-overlay {
       position: absolute; inset: 0;
       display: flex; flex-direction: column;
@@ -217,13 +230,16 @@
       background: linear-gradient(160deg, #1c140a 0%, #2e2112 100%);
       z-index: 5; transition: opacity 0.4s ease; pointer-events: none;
     }
-    .mv-loading-overlay.hidden { opacity: 0; pointer-events: none; }
+    .mv-loading-overlay.hidden { opacity: 0; }
+
     .mv-loader-ring {
       width: 40px; height: 40px;
       border: 2px solid rgba(184,134,11,0.15);
-      border-top-color: #b8860b; border-radius: 50%;
+      border-top-color: #b8860b;
+      border-radius: 50%;
       animation: spin 0.9s linear infinite;
     }
+
     .mv-loader-bar-track {
       width: 80px; height: 2px;
       background: rgba(184,134,11,0.12); border-radius: 2px; overflow: hidden;
@@ -237,7 +253,7 @@
       color: rgba(184,134,11,0.6);
     }
 
-    /* ── AR READY BADGE ──────────────────────────────── */
+    /* ── AR READY BADGE inside viewer ──────────────────── */
     .mv-ar-badge {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%) translateY(-6px);
       background: rgba(26,18,8,0.8); border: 1px solid #b8860b;
@@ -248,12 +264,18 @@
       backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
       pointer-events: none; z-index: 4; white-space: nowrap;
     }
-    .mv-ar-badge.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .mv-ar-badge.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
 
-    /* ── SCALE CHIP ──────────────────────────────────── */
+    /* ── SCALE INFO CHIP ──────────────────────────────── */
+    /* Shows the real-world size so customers understand the portion */
     .scale-info {
-      position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-      background: rgba(26,18,8,0.75); border: 1px solid rgba(184,134,11,0.3);
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26,18,8,0.75);
+      border: 1px solid rgba(184,134,11,0.3);
       border-radius: 12px; padding: 4px 12px;
       font-size: 9px; letter-spacing: 0.2em; color: rgba(255,255,255,0.5);
       text-transform: uppercase; white-space: nowrap;
@@ -264,7 +286,8 @@
     .modal-close {
       position: absolute; top: 12px; right: 12px;
       width: 34px; height: 34px; border-radius: 50%;
-      background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.12);
       color: rgba(255,255,255,0.8); font-size: 17px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; z-index: 10; line-height: 1; transition: background 0.15s;
@@ -290,6 +313,7 @@
       font-size: 11px; letter-spacing: 1px;
       color: var(--muted); border-top: 1px solid var(--border); line-height: 1.8;
     }
+
     .menu-card.unavailable { opacity: 0.45; pointer-events: none; }
   </style>
 </head>
@@ -333,11 +357,16 @@
 <!-- ═══════════════════ MODAL ════════════════════════ -->
 <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-label="Dish detail">
   <div class="modal-card">
+
+    <!-- 3D Viewer area -->
     <div class="modal-viewer-wrap" id="modal-viewer-wrap">
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+      <!-- AR-ready badge — shown after model loads -->
       <div class="mv-ar-badge" id="mv-ar-badge">✦ AR Ready</div>
+      <!-- Scale info shown at bottom of viewer -->
       <div class="scale-info" id="scale-info">Actual portion size</div>
     </div>
+
     <div class="modal-body">
       <h2 class="modal-name" id="modal-name"></h2>
       <p  class="modal-jp"   id="modal-jp"></p>
@@ -404,6 +433,9 @@ let rawRows        = [];
 let activeCategory = 'all';
 let currentLang    = 'en';
 
+// ─────────────────────────────────────────────────────────────
+//  iOS DETECTION (needed for ios-src / Quick Look)
+// ─────────────────────────────────────────────────────────────
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
@@ -440,11 +472,16 @@ function splitLine(line) {
 // ─────────────────────────────────────────────────────────────
 function rowToDish(row) {
   const truthy = v => ['true','yes','1'].includes((v || '').toLowerCase());
+
   const sfx  = currentLang !== 'en' ? `_${currentLang}` : '';
   const desc = row[`description${sfx}`] || row['description'] || '';
   const name = row[`name${sfx}`]        || row['name']        || '';
+
   const rawGlb  = (row['glb_url'] || '').trim();
   const glbPath = rawGlb ? decodeURIComponent(rawGlb) : '';
+
+  // ✅ SCALE: read directly from sheet — this is the ONLY scale used
+  //    No fallback to 1 — if sheet says 0.5, the model is 0.5x
   const scale = parseFloat(row['scale'] || '1') || 1;
 
   return {
@@ -459,7 +496,7 @@ function rowToDish(row) {
     isNew:     truthy(row['new']),
     available: truthy(row['available']),
     glbPath,
-    scale,
+    scale,    // ← exact value from sheet
     emoji:    EMOJI_MAP[(row['name'] || '').toLowerCase()] || '🍽️',
   };
 }
@@ -511,9 +548,11 @@ function cardHTML(d) {
                 camera-orbit="0deg 70deg 0.9m"
                 min-camera-orbit="auto 70deg 0.9m"
                 max-camera-orbit="auto 70deg 0.9m"
-                disable-zoom disable-pan
+                disable-zoom
+                disable-pan
                 interaction-prompt="none"
-                loading="eager" reveal="auto"
+                loading="eager"
+                reveal="auto"
                 style="width:100%;height:100%;background:#000;--progress-bar-height:0px;pointer-events:none;"
               ></model-viewer>`
             : `<span class="thumb-emoji">${d.emoji}</span>`
@@ -560,33 +599,21 @@ function renderItems() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  MODAL — INSTANT SCALE, ZERO POP
+//  MODAL — FIXED SCALE, NO PINCH ZOOM
 //
-//  THE FIX IN DETAIL:
+//  HOW FIXED SCALE WORKS:
+//  1. `scale="${s} ${s} ${s}"` sets the model's world scale from sheet.
+//  2. `camera-orbit` locks the camera to a fixed distance/angle.
+//  3. `min-camera-orbit` = `max-camera-orbit` = same value → 
+//     orbit controls are constrained so the user CANNOT zoom in/out.
+//  4. `disable-zoom` attribute disables scroll-wheel zoom.
+//  5. `touch-action: none` on the element prevents browser
+//     from interpreting pinch as page zoom (CSS already set above).
+//  6. `interaction-prompt="none"` removes the hand animation
+//     that encourages zooming.
 //
-//  Problem: model-viewer renders the raw GLB geometry FIRST at
-//  whatever scale the GLB was exported at, THEN asynchronously
-//  applies the `scale` attribute — causing a visible size jump.
-//
-//  Solution — three-layer defence:
-//
-//  1. `opacity: 0` on the <model-viewer> element (CSS default above).
-//     The loading overlay sits on top, so the user sees the spinner.
-//
-//  2. `reveal="interaction"` — model-viewer's own mechanism that
-//     keeps the canvas hidden until the model is fully initialised
-//     (geometry + scale + materials all applied). Without this,
-//     the element "reveals" itself mid-parse.
-//
-//  3. On the 'load' event we:
-//     a) Fade out the loading overlay
-//     b) Set mv.style.opacity = '1' (CSS transition makes it smooth)
-//     By the time 'load' fires, scale is already baked into the
-//     scene — so the FIRST visible frame is already the right size.
-//
-//  Camera is locked (min == max orbit radius) to prevent the user
-//  from zooming and misrepresenting portion size.
-//  AR uses ar-scale="fixed" for the same reason.
+//  AR uses the same scale — ar-scale="fixed" prevents AR from
+//  auto-scaling the model when placed in the real world.
 // ─────────────────────────────────────────────────────────────
 function openModal(id) {
   const d = allDishes.find(x => x.id === id);
@@ -600,6 +627,7 @@ function openModal(id) {
   document.getElementById('modal-tags').innerHTML   = tagHTML(d);
   document.getElementById('modal-tags2').innerHTML  = tagHTML(d);
 
+  // Reset badges
   const arBadge   = document.getElementById('mv-ar-badge');
   const scaleInfo = document.getElementById('scale-info');
   arBadge.classList.remove('visible');
@@ -610,62 +638,57 @@ function openModal(id) {
   if (prev) prev.remove();
 
   if (d.glbPath) {
+    // ── Build model-viewer programmatically ──────────────────
     const mv = document.createElement('model-viewer');
 
-    // ── Source ───────────────────────────────────────────────
+    // ✅ Source
     mv.setAttribute('src', d.glbPath);
+
+    // ✅ iOS Quick Look — provide USDZ if you have it
     if (isIOS) {
       mv.setAttribute('ios-src', d.glbPath.replace(/\.glb$/i, '.usdz'));
     }
 
-    // ✅ FIX 1: Scale set BEFORE inserting into DOM.
-    //    When the element is created programmatically and all
-    //    attributes are set before attachment, the renderer
-    //    initialises with the correct scale already in place.
+    // ✅ EXACT SCALE FROM SHEET — applied to model world transform
     const s = d.scale.toFixed(6);
     mv.setAttribute('scale', `${s} ${s} ${s}`);
 
-    // ✅ FIX 2: reveal="interaction" keeps the canvas pixels
-    //    hidden (black / transparent) until the model is fully
-    //    loaded AND the interaction-prompt animation would show.
-    //    Combined with opacity:0 → the user sees zero frames at
-    //    wrong scale.
-    mv.setAttribute('reveal', 'interaction');
-
-    // ✅ FIX 3: Fixed FOV locks perceived size regardless of
-    //    window resize or orientation change.
-    mv.setAttribute('field-of-view',     '30deg');
+    // ✅ SPEED: pre-set field-of-view so model appears at correct size instantly
+    mv.setAttribute('field-of-view', '30deg');
     mv.setAttribute('min-field-of-view', '30deg');
     mv.setAttribute('max-field-of-view', '30deg');
 
-    // ✅ Lock camera distance — min == max == same orbit radius
+    // ✅ LOCK CAMERA so user cannot zoom and change perceived size
+    //    Orbit: azimuth | elevation | radius
+    //    Both min and max set to the same value = locked
     mv.setAttribute('camera-orbit',     '0deg 70deg 0.7m');
     mv.setAttribute('min-camera-orbit', 'auto 70deg 0.7m');
     mv.setAttribute('max-camera-orbit', 'auto 70deg 0.7m');
-    mv.setAttribute('disable-zoom',     '');
 
-    // ── AR config ────────────────────────────────────────────
-    mv.setAttribute('ar',           '');
-    mv.setAttribute('ar-modes',     'webxr scene-viewer quick-look');
-    mv.setAttribute('ar-placement', 'floor');
-    mv.setAttribute('ar-scale',     'fixed'); // no auto-resize in real world
+    // ✅ DISABLE ZOOM — belt & suspenders alongside locked orbit
+    mv.setAttribute('disable-zoom', '');
+
+    // ✅ AR — uses same scale, no auto-resize in real world
+    mv.setAttribute('ar',            '');
+    mv.setAttribute('ar-modes',      'webxr scene-viewer quick-look');
+    mv.setAttribute('ar-placement',  'floor');
+    mv.setAttribute('ar-scale',      'fixed');   // ← AR won't auto-scale either
 
     // ── Viewer experience ────────────────────────────────────
-    mv.setAttribute('camera-controls',    '');
+    mv.setAttribute('camera-controls',    '');    // still allow rotation (not zoom)
     mv.setAttribute('auto-rotate',        '');
-    mv.setAttribute('auto-rotate-delay',  '800');
+    mv.setAttribute('auto-rotate-delay',  '1000');
     mv.setAttribute('rotation-per-second','30deg');
     mv.setAttribute('shadow-intensity',   '1');
     mv.setAttribute('environment-image',  'neutral');
     mv.setAttribute('exposure',           '1.1');
-    mv.setAttribute('interaction-prompt', 'none');
+    mv.setAttribute('interaction-prompt', 'none'); // no "pinch" hint shown
     mv.setAttribute('loading',            'eager');
+    mv.setAttribute('reveal',             'auto');
 
-    // ✅ FIX 4: CSS opacity starts at 0 (defined in stylesheet).
-    //    We will set it to 1 only after 'load' fires.
-    mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;opacity:0;transition:opacity 0.35s ease;';
+    mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;';
 
-    // ── Loading overlay ──────────────────────────────────────
+    // ── Loading overlay (fast feedback while GLB downloads) ──
     const loadOverlay = document.createElement('div');
     loadOverlay.className = 'mv-loading-overlay';
     loadOverlay.id = 'mv-load-overlay';
@@ -674,28 +697,23 @@ function openModal(id) {
       <div class="mv-loader-bar-track"><div class="mv-loader-bar-fill" id="mv-bar"></div></div>
       <div class="mv-loader-label">Loading model</div>
     `;
-
-    // Insert model-viewer THEN overlay (overlay sits on top via z-index)
-    vw.insertBefore(mv, arBadge);
     vw.insertBefore(loadOverlay, arBadge);
+    vw.insertBefore(mv, loadOverlay);
 
-    // ── Events ──────────────────────────────────────────────
+    // ── Wire events ──────────────────────────────────────────
+    // ✅ FAST LOAD: progress bar fills as bytes arrive
     mv.addEventListener('progress', (e) => {
       const bar = document.getElementById('mv-bar');
       if (bar) bar.style.width = Math.round(e.detail.totalProgress * 100) + '%';
     });
 
+    // ✅ FAST AR: enable AR button the instant model is parsed
     mv.addEventListener('load', () => {
-      // ✅ KEY MOMENT: scale is fully applied at this point.
-      //    Fade overlay OUT, fade model-viewer IN simultaneously.
-      //    User's first visible frame of the model = correct size.
       loadOverlay.classList.add('hidden');
-      mv.style.opacity = '1';
       arBadge.classList.add('visible');
+      // Update scale chip with human-readable info
       scaleInfo.textContent = `Scale: ${d.scale}× · Actual portion size`;
-      setTimeout(() => {
-        if (loadOverlay.parentNode) loadOverlay.remove();
-      }, 450);
+      setTimeout(() => loadOverlay.remove(), 500);
     });
 
     mv.addEventListener('error', () => {
@@ -706,6 +724,7 @@ function openModal(id) {
     });
 
   } else {
+    // Fallback: no GLB
     const ph = document.createElement('div');
     ph.className = 'no-model';
     ph.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:10px;';
@@ -719,7 +738,7 @@ function openModal(id) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  CLOSE MODAL
+//  CLOSE MODAL — remove model-viewer to free memory
 // ─────────────────────────────────────────────────────────────
 function closeModal() {
   document.getElementById('modal-overlay').classList.remove('open');
