@@ -12,6 +12,12 @@
 
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;600&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet" />
 
+  <!--
+    ✅ PERFORMANCE: Load model-viewer as a classic script with async so it
+       registers the custom element before any card model-viewer tags render.
+       Using the minified ESM via unpkg with modulepreload hint.
+  -->
+  <link rel="modulepreload" href="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js" />
   <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 
   <style>
@@ -33,6 +39,7 @@
     }
 
     html { scroll-behavior: smooth; }
+
     body {
       background: var(--paper);
       font-family: 'DM Sans', sans-serif;
@@ -42,13 +49,16 @@
 
     /* ── HEADER ─────────────────────────────────────── */
     .site-header {
-      background: var(--ink); color: #fff;
+      background: var(--ink);
+      color: #fff;
       text-align: center;
       padding: max(env(safe-area-inset-top), 2.5rem) 1rem 2rem;
-      position: relative; overflow: hidden;
+      position: relative;
+      overflow: hidden;
     }
     .site-header::before {
-      content: ''; position: absolute; inset: 0;
+      content: '';
+      position: absolute; inset: 0;
       background-image:
         radial-gradient(circle at 20% 50%, rgba(192,57,43,0.12) 0%, transparent 60%),
         radial-gradient(circle at 80% 50%, rgba(184,134,11,0.10) 0%, transparent 60%);
@@ -134,7 +144,6 @@
       --progress-bar-height: 0px;
       pointer-events: none;
     }
-    .card-thumb .thumb-emoji { font-size: 30px; }
     .ar-pill {
       position: absolute; bottom: 3px; right: 3px;
       background: var(--ink); color: #fff; font-size: 8px;
@@ -191,53 +200,42 @@
     }
 
     /*
-     * ✅ FIX: model-viewer starts INVISIBLE (opacity:0).
-     *    We only reveal it via JS after the 'load' event fires,
-     *    which is AFTER scale + geometry are both fully applied.
-     *    This eliminates the "wrong size → correct size" pop entirely.
-     */
+      ✅ FIXED SCALE + NO PINCH ZOOM
+      touch-action: none  → kills pinch-to-zoom on mobile
+      pointer-events: auto → we still want orbit/rotate (not zoom)
+      Zoom is locked via min/max-camera-orbit radius + disable-zoom attr.
+    */
     model-viewer {
       display: block;
       width: 100%;
       height: 300px;
       background: transparent;
-      --progress-bar-color: #b8860b;
-      --progress-mask: transparent;
+      --progress-bar-color: transparent;   /* hide default bar; we have our own */
+      --progress-bar-height: 0px;
       touch-action: none;
-      /* KEY FIX: hidden until scale is applied */
-      opacity: 0;
-      transition: opacity 0.35s ease;
     }
 
-    /* ── LOADING OVERLAY ─────────────────────────────── */
-    .mv-loading-overlay {
-      position: absolute; inset: 0;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 10px;
-      background: linear-gradient(160deg, #1c140a 0%, #2e2112 100%);
-      z-index: 5; transition: opacity 0.4s ease; pointer-events: none;
+    /* ── SLIM PROGRESS BAR (replaces overlay for speed) ── */
+    /*
+      Instead of a full blocking overlay we use a thin gold progress bar at the
+      top of the viewer. The model appears as soon as the first geometry chunk
+      arrives — the bar just shows bytes remaining.
+    */
+    .mv-progress-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px; background: transparent; z-index: 6; pointer-events: none;
+      overflow: hidden;
     }
-    .mv-loading-overlay.hidden { opacity: 0; pointer-events: none; }
-    .mv-loader-ring {
-      width: 40px; height: 40px;
-      border: 2px solid rgba(184,134,11,0.15);
-      border-top-color: #b8860b; border-radius: 50%;
-      animation: spin 0.9s linear infinite;
+    .mv-progress-bar-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #b8860b, #e0b84a);
+      transition: width 0.15s linear;
+      box-shadow: 0 0 6px rgba(184,134,11,0.6);
     }
-    .mv-loader-bar-track {
-      width: 80px; height: 2px;
-      background: rgba(184,134,11,0.12); border-radius: 2px; overflow: hidden;
-    }
-    .mv-loader-bar-fill {
-      height: 100%; background: #b8860b; width: 0%;
-      border-radius: 2px; transition: width 0.2s ease;
-    }
-    .mv-loader-label {
-      font-size: 9px; letter-spacing: 0.25em; text-transform: uppercase;
-      color: rgba(184,134,11,0.6);
-    }
+    /* Bar fades out on load */
+    .mv-progress-bar.done { opacity: 0; transition: opacity 0.4s ease 0.1s; }
 
-    /* ── AR READY BADGE ──────────────────────────────── */
+    /* ── AR READY BADGE inside viewer ──────────────────── */
     .mv-ar-badge {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%) translateY(-6px);
       background: rgba(26,18,8,0.8); border: 1px solid #b8860b;
@@ -250,10 +248,12 @@
     }
     .mv-ar-badge.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    /* ── SCALE CHIP ──────────────────────────────────── */
+    /* ── SCALE INFO CHIP ──────────────────────────────── */
     .scale-info {
-      position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-      background: rgba(26,18,8,0.75); border: 1px solid rgba(184,134,11,0.3);
+      position: absolute; bottom: 10px; left: 50%;
+      transform: translateX(-50%);
+      background: rgba(26,18,8,0.75);
+      border: 1px solid rgba(184,134,11,0.3);
       border-radius: 12px; padding: 4px 12px;
       font-size: 9px; letter-spacing: 0.2em; color: rgba(255,255,255,0.5);
       text-transform: uppercase; white-space: nowrap;
@@ -264,7 +264,8 @@
     .modal-close {
       position: absolute; top: 12px; right: 12px;
       width: 34px; height: 34px; border-radius: 50%;
-      background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.12);
       color: rgba(255,255,255,0.8); font-size: 17px;
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; z-index: 10; line-height: 1; transition: background 0.15s;
@@ -290,6 +291,7 @@
       font-size: 11px; letter-spacing: 1px;
       color: var(--muted); border-top: 1px solid var(--border); line-height: 1.8;
     }
+
     .menu-card.unavailable { opacity: 0.45; pointer-events: none; }
   </style>
 </head>
@@ -333,11 +335,20 @@
 <!-- ═══════════════════ MODAL ════════════════════════ -->
 <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-label="Dish detail">
   <div class="modal-card">
+
+    <!-- 3D Viewer area -->
     <div class="modal-viewer-wrap" id="modal-viewer-wrap">
       <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+      <!-- Thin progress bar — faster feedback than a full overlay -->
+      <div class="mv-progress-bar" id="mv-progress-bar">
+        <div class="mv-progress-bar-fill" id="mv-bar"></div>
+      </div>
+      <!-- AR-ready badge — shown after model loads -->
       <div class="mv-ar-badge" id="mv-ar-badge">✦ AR Ready</div>
+      <!-- Scale info shown at bottom of viewer -->
       <div class="scale-info" id="scale-info">Actual portion size</div>
     </div>
+
     <div class="modal-body">
       <h2 class="modal-name" id="modal-name"></h2>
       <p  class="modal-jp"   id="modal-jp"></p>
@@ -383,7 +394,7 @@ const I18N = {
   jp: { sub:'本物の日本料理',                  badge:'インタラクティブ3DとARプレビュー',          veg:'ベジ',       loading:'読み込み中…' },
   kn: { sub:'ಅಧಿಕೃತ ಜಪಾನೀಸ್ ಆಹಾರ',         badge:'ಸಂವಾದಾತ್ಮಕ 3D ಮತ್ತು AR ಮುನ್ನೋಟ',       veg:'ಸಸ್ಯಹಾರಿ', loading:'ಲೋಡ್ ಆಗುತ್ತಿದೆ…' },
   ta: { sub:'உண்மையான ஜப்பானிய உணவு',       badge:'ஊடாடும் 3D மற்றும் AR மாதிரிக்காட்சி', veg:'சைவம்',      loading:'ஏற்றப்படுகிறது…' },
-  ml: { sub:'ആധികാരിക ജാപ്പനീസ് വിഭവങ്ങൾ', badge:'ഇന്ററാക്ടീവ് 3D & AR പ്രിവ്യൂ',         veg:'വെജ്',       loading:'ലോഡ് ചെയ്യുന്നു…' },
+  ml: { sub:'ആധികാരിக ജാപ്പനീസ് വിഭവങ്ങൾ', badge:'ഇന്ററാക്ടീവ് 3D & AR പ്രിവ്യൂ',         veg:'വെജ്',       loading:'ലോഡ് ചെയ്യുന്നു…' },
   te: { sub:'ప్రామాణిక జపనీస్ వంటకాలు',     badge:'ఇంటరాక్టివ్ 3D & AR ప్రివ్యూ',          veg:'శాఖాహారం',   loading:'లోడ్ అవుతోంది…' },
 };
 
@@ -404,8 +415,31 @@ let rawRows        = [];
 let activeCategory = 'all';
 let currentLang    = 'en';
 
+// ─────────────────────────────────────────────────────────────
+//  iOS DETECTION
+// ─────────────────────────────────────────────────────────────
 const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+// ─────────────────────────────────────────────────────────────
+//  GLB PREFETCH CACHE
+//  When a dish card is rendered we kick off a low-priority fetch
+//  so the browser caches the GLB. When the user opens the modal
+//  the browser will serve it from cache instead of re-downloading.
+// ─────────────────────────────────────────────────────────────
+const prefetched = new Set();
+function prefetchGLB(url) {
+  if (!url || prefetched.has(url)) return;
+  prefetched.add(url);
+  // Use <link rel=prefetch> so it is truly low priority and
+  // doesn't compete with page assets, but still warms the cache.
+  const link = document.createElement('link');
+  link.rel  = 'prefetch';
+  link.href = url;
+  link.as   = 'fetch';
+  link.crossOrigin = 'anonymous';
+  document.head.appendChild(link);
+}
 
 // ─────────────────────────────────────────────────────────────
 //  CSV PARSER
@@ -421,7 +455,6 @@ function parseCSV(text) {
     return obj;
   });
 }
-
 function splitLine(line) {
   const result = []; let cur = ''; let inQ = false;
   for (let i = 0; i < line.length; i++) {
@@ -445,6 +478,8 @@ function rowToDish(row) {
   const name = row[`name${sfx}`]        || row['name']        || '';
   const rawGlb  = (row['glb_url'] || '').trim();
   const glbPath = rawGlb ? decodeURIComponent(rawGlb) : '';
+
+  // ✅ Scale comes ONLY from sheet — never overridden
   const scale = parseFloat(row['scale'] || '1') || 1;
 
   return {
@@ -475,7 +510,6 @@ function tagHTML(d) {
     d.dotd  ? `<span class="tag tag-dotd">★ chef's pick</span>` : '',
   ].join('');
 }
-
 function catLabel(cat) {
   const map = CAT_LABELS[cat];
   return map ? (map[currentLang] || map.en) : (cat.charAt(0).toUpperCase() + cat.slice(1));
@@ -511,9 +545,11 @@ function cardHTML(d) {
                 camera-orbit="0deg 70deg 0.9m"
                 min-camera-orbit="auto 70deg 0.9m"
                 max-camera-orbit="auto 70deg 0.9m"
-                disable-zoom disable-pan
+                disable-zoom
+                disable-pan
                 interaction-prompt="none"
-                loading="eager" reveal="auto"
+                loading="eager"
+                reveal="auto"
                 style="width:100%;height:100%;background:#000;--progress-bar-height:0px;pointer-events:none;"
               ></model-viewer>`
             : `<span class="thumb-emoji">${d.emoji}</span>`
@@ -551,6 +587,9 @@ function renderItems() {
     container.innerHTML = `<div class="items-grid">${filtered.map(cardHTML).join('')}</div>`;
   }
 
+  // Kick off prefetch for all GLBs visible in the list
+  filtered.forEach(d => { if (d.glbPath) prefetchGLB(d.glbPath); });
+
   container.querySelectorAll('.menu-card').forEach(card =>
     card.addEventListener('click', () => openModal(card.dataset.id))
   );
@@ -560,33 +599,31 @@ function renderItems() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  MODAL — INSTANT SCALE, ZERO POP
+//  MODAL — FAST APPEARANCE + FIXED SCALE
 //
-//  THE FIX IN DETAIL:
+//  HOW FAST APPEARANCE WORKS:
+//  1. All attributes are set BEFORE the element is appended to DOM.
+//     model-viewer starts the fetch immediately on connectedCallback.
+//     Setting attributes after insertion causes a redundant model reload.
+//  2. GLB is already in browser cache from the prefetch above, so the
+//     "download" is near-instant on modal open.
+//  3. reveal="auto" — model appears as soon as WebGL has enough geometry;
+//     no waiting for full load (unlike reveal="interaction").
+//  4. We use a thin progress bar instead of a full blocking overlay so
+//     the viewer background (dark gradient) is visible immediately.
+//  5. poster="" is intentionally omitted — a poster PNG would cause an
+//     extra HTTP round-trip and delay the 3D appearance.
 //
-//  Problem: model-viewer renders the raw GLB geometry FIRST at
-//  whatever scale the GLB was exported at, THEN asynchronously
-//  applies the `scale` attribute — causing a visible size jump.
-//
-//  Solution — three-layer defence:
-//
-//  1. `opacity: 0` on the <model-viewer> element (CSS default above).
-//     The loading overlay sits on top, so the user sees the spinner.
-//
-//  2. `reveal="interaction"` — model-viewer's own mechanism that
-//     keeps the canvas hidden until the model is fully initialised
-//     (geometry + scale + materials all applied). Without this,
-//     the element "reveals" itself mid-parse.
-//
-//  3. On the 'load' event we:
-//     a) Fade out the loading overlay
-//     b) Set mv.style.opacity = '1' (CSS transition makes it smooth)
-//     By the time 'load' fires, scale is already baked into the
-//     scene — so the FIRST visible frame is already the right size.
-//
-//  Camera is locked (min == max orbit radius) to prevent the user
-//  from zooming and misrepresenting portion size.
-//  AR uses ar-scale="fixed" for the same reason.
+//  HOW FIXED SCALE WORKS (AR size from sheet):
+//  1. scale="${s} ${s} ${s}" sets the model's world transform to exactly
+//     the value from the sheet column, e.g. "0.5 0.5 0.5".
+//  2. ar-scale="fixed" tells WebXR / Scene Viewer / Quick Look to NOT
+//     auto-resize the model when placing it in the real world.
+//     The model will appear at whatever real-world size the author set.
+//  3. min/max-camera-orbit radius locked → user cannot zoom and make
+//     the model look bigger/smaller in the 3D preview.
+//  4. disable-zoom attr + touch-action:none CSS → belt-and-suspenders
+//     against pinch zoom on mobile.
 // ─────────────────────────────────────────────────────────────
 function openModal(id) {
   const d = allDishes.find(x => x.id === id);
@@ -600,58 +637,60 @@ function openModal(id) {
   document.getElementById('modal-tags').innerHTML   = tagHTML(d);
   document.getElementById('modal-tags2').innerHTML  = tagHTML(d);
 
+  // Reset UI
   const arBadge   = document.getElementById('mv-ar-badge');
   const scaleInfo = document.getElementById('scale-info');
+  const progressBar = document.getElementById('mv-progress-bar');
+  const progressFill = document.getElementById('mv-bar');
   arBadge.classList.remove('visible');
+  progressBar.classList.remove('done');
+  progressFill.style.width = '0%';
   scaleInfo.textContent = 'Actual portion size';
 
   const vw   = document.getElementById('modal-viewer-wrap');
+
+  // Remove previous model/placeholder
   const prev = vw.querySelector('model-viewer, .no-model');
   if (prev) prev.remove();
 
   if (d.glbPath) {
+    // ── Build model-viewer with ALL attributes set BEFORE DOM insertion ──
+    //    This is the single biggest speed win: model-viewer starts fetching
+    //    the GLB the moment the element is connected; setting attrs after
+    //    insertion causes it to restart the load.
     const mv = document.createElement('model-viewer');
 
-    // ── Source ───────────────────────────────────────────────
+    // Source
     mv.setAttribute('src', d.glbPath);
+
+    // iOS Quick Look (USDZ)
     if (isIOS) {
       mv.setAttribute('ios-src', d.glbPath.replace(/\.glb$/i, '.usdz'));
     }
 
-    // ✅ FIX 1: Scale set BEFORE inserting into DOM.
-    //    When the element is created programmatically and all
-    //    attributes are set before attachment, the renderer
-    //    initialises with the correct scale already in place.
+    // ✅ EXACT SCALE FROM SHEET — applied before DOM insertion
     const s = d.scale.toFixed(6);
     mv.setAttribute('scale', `${s} ${s} ${s}`);
 
-    // ✅ FIX 2: reveal="interaction" keeps the canvas pixels
-    //    hidden (black / transparent) until the model is fully
-    //    loaded AND the interaction-prompt animation would show.
-    //    Combined with opacity:0 → the user sees zero frames at
-    //    wrong scale.
-    mv.setAttribute('reveal', 'interaction');
-
-    // ✅ FIX 3: Fixed FOV locks perceived size regardless of
-    //    window resize or orientation change.
+    // Lock camera so perceived size matches scale
+    mv.setAttribute('camera-orbit',     '0deg 70deg 0.7m');
+    mv.setAttribute('min-camera-orbit', 'auto 70deg 0.7m');
+    mv.setAttribute('max-camera-orbit', 'auto 70deg 0.7m');
     mv.setAttribute('field-of-view',     '30deg');
     mv.setAttribute('min-field-of-view', '30deg');
     mv.setAttribute('max-field-of-view', '30deg');
 
-    // ✅ Lock camera distance — min == max == same orbit radius
-    mv.setAttribute('camera-orbit',     '0deg 70deg 0.7m');
-    mv.setAttribute('min-camera-orbit', 'auto 70deg 0.7m');
-    mv.setAttribute('max-camera-orbit', 'auto 70deg 0.7m');
-    mv.setAttribute('disable-zoom',     '');
+    // Disable zoom — belt & suspenders
+    mv.setAttribute('disable-zoom', '');
 
-    // ── AR config ────────────────────────────────────────────
+    // ✅ AR — ar-scale="fixed" uses the same sheet scale in the real world
     mv.setAttribute('ar',           '');
     mv.setAttribute('ar-modes',     'webxr scene-viewer quick-look');
     mv.setAttribute('ar-placement', 'floor');
-    mv.setAttribute('ar-scale',     'fixed'); // no auto-resize in real world
+    mv.setAttribute('ar-scale',     'fixed');   // ← no auto-resize in AR
 
-    // ── Viewer experience ────────────────────────────────────
-    mv.setAttribute('camera-controls',    '');
+    // Viewer experience
+    mv.setAttribute('camera-controls',   '');
     mv.setAttribute('auto-rotate',        '');
     mv.setAttribute('auto-rotate-delay',  '800');
     mv.setAttribute('rotation-per-second','30deg');
@@ -659,53 +698,41 @@ function openModal(id) {
     mv.setAttribute('environment-image',  'neutral');
     mv.setAttribute('exposure',           '1.1');
     mv.setAttribute('interaction-prompt', 'none');
-    mv.setAttribute('loading',            'eager');
 
-    // ✅ FIX 4: CSS opacity starts at 0 (defined in stylesheet).
-    //    We will set it to 1 only after 'load' fires.
-    mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;opacity:0;transition:opacity 0.35s ease;';
+    // ✅ FAST: eager + auto reveal — no waiting for full download
+    mv.setAttribute('loading', 'eager');
+    mv.setAttribute('reveal',  'auto');
 
-    // ── Loading overlay ──────────────────────────────────────
-    const loadOverlay = document.createElement('div');
-    loadOverlay.className = 'mv-loading-overlay';
-    loadOverlay.id = 'mv-load-overlay';
-    loadOverlay.innerHTML = `
-      <div class="mv-loader-ring"></div>
-      <div class="mv-loader-bar-track"><div class="mv-loader-bar-fill" id="mv-bar"></div></div>
-      <div class="mv-loader-label">Loading model</div>
-    `;
+    mv.style.cssText = 'display:block;width:100%;height:300px;background:transparent;touch-action:none;';
 
-    // Insert model-viewer THEN overlay (overlay sits on top via z-index)
+    // ── Insert BEFORE the badge elements ─────────────────────
+    //    Inserting before arBadge means model-viewer is first child
+    //    and starts fetching immediately on connectedCallback.
     vw.insertBefore(mv, arBadge);
-    vw.insertBefore(loadOverlay, arBadge);
 
-    // ── Events ──────────────────────────────────────────────
+    // ── Wire events ──────────────────────────────────────────
     mv.addEventListener('progress', (e) => {
-      const bar = document.getElementById('mv-bar');
-      if (bar) bar.style.width = Math.round(e.detail.totalProgress * 100) + '%';
+      // Fill the slim progress bar as bytes arrive
+      const pct = Math.round(e.detail.totalProgress * 100);
+      progressFill.style.width = pct + '%';
     });
 
     mv.addEventListener('load', () => {
-      // ✅ KEY MOMENT: scale is fully applied at this point.
-      //    Fade overlay OUT, fade model-viewer IN simultaneously.
-      //    User's first visible frame of the model = correct size.
-      loadOverlay.classList.add('hidden');
-      mv.style.opacity = '1';
+      // Hide progress bar gracefully
+      progressBar.classList.add('done');
+      // Show AR badge
       arBadge.classList.add('visible');
-      scaleInfo.textContent = `Scale: ${d.scale}× · Actual portion size`;
-      setTimeout(() => {
-        if (loadOverlay.parentNode) loadOverlay.remove();
-      }, 450);
+      // Update scale chip
+      scaleInfo.textContent = `Scale ${d.scale}× · Actual portion`;
     });
 
     mv.addEventListener('error', () => {
-      const label = loadOverlay.querySelector('.mv-loader-label');
-      const ring  = loadOverlay.querySelector('.mv-loader-ring');
-      if (label) label.textContent = 'Model unavailable';
-      if (ring)  ring.style.display = 'none';
+      progressFill.style.background = '#c0392b';
+      progressFill.style.width = '100%';
     });
 
   } else {
+    // Fallback: no GLB
     const ph = document.createElement('div');
     ph.className = 'no-model';
     ph.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:10px;';
@@ -726,9 +753,9 @@ function closeModal() {
   document.body.style.overflow = '';
   const mv = document.querySelector('#modal-viewer-wrap model-viewer');
   if (mv) mv.remove();
-  const loadOverlay = document.getElementById('mv-load-overlay');
-  if (loadOverlay) loadOverlay.remove();
   document.getElementById('mv-ar-badge').classList.remove('visible');
+  document.getElementById('mv-progress-bar').classList.remove('done');
+  document.getElementById('mv-bar').style.width = '0%';
 }
 
 document.getElementById('modal-close').addEventListener('click', closeModal);
